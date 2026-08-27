@@ -89,6 +89,8 @@ interface M3TextFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   leadingIcon?: LucideIcon;
   trailingIcon?: LucideIcon;
+  onTrailingIconClick?: () => void;
+  trailingElement?: React.ReactNode;
   error?: string;
   id?: string;
 }
@@ -97,6 +99,8 @@ export const M3TextField: React.FC<M3TextFieldProps> = ({
   label,
   leadingIcon: LeadingIcon,
   trailingIcon: TrailingIcon,
+  onTrailingIconClick,
+  trailingElement,
   error,
   id,
   className = '',
@@ -114,7 +118,7 @@ export const M3TextField: React.FC<M3TextFieldProps> = ({
           id={id}
           className={`w-full font-sans text-sm rounded-lg border bg-white py-3.5 px-4 outline-none transition-all duration-150
             ${LeadingIcon ? 'pl-11' : ''} 
-            ${TrailingIcon ? 'pr-11' : ''}
+            ${TrailingIcon || trailingElement ? 'pr-11' : ''}
             ${error 
               ? 'border-error-m3 focus:border-error-m3 focus:ring-1 focus:ring-error-m3' 
               : 'border-slate-300 focus:border-primary-m3 focus:ring-1 focus:ring-primary-m3'
@@ -135,8 +139,18 @@ export const M3TextField: React.FC<M3TextFieldProps> = ({
           {label}
         </label>
         {TrailingIcon && (
-          <div className="absolute right-3.5 text-slate-400">
+          <button
+            type="button"
+            onClick={onTrailingIconClick}
+            tabIndex={-1}
+            className={`absolute right-3.5 text-slate-400 hover:text-slate-600 transition-colors ${onTrailingIconClick ? 'cursor-pointer' : 'pointer-events-none'}`}
+          >
             <TrailingIcon className="w-5 h-5" />
+          </button>
+        )}
+        {trailingElement && (
+          <div className="absolute right-3.5">
+            {trailingElement}
           </div>
         )}
       </div>

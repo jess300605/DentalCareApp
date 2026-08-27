@@ -31,7 +31,13 @@ import {
   Lock,
   PlusCircle,
   HelpCircle,
-  Check
+  Check,
+  Eye,
+  EyeOff,
+  UserCheck,
+  KeyRound,
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 import { 
   Dentist, 
@@ -39,7 +45,8 @@ import {
   Appointment, 
   NotificationItem, 
   ActiveScreen, 
-  AppointmentStatus 
+  AppointmentStatus,
+  AuthUser
 } from '../types';
 import { 
   M3Button, 
@@ -50,7 +57,7 @@ import {
   M3FAB, 
   M3Switch 
 } from './M3Components';
-import { AVAILABLE_TIME_SLOTS } from '../data';
+import { AVAILABLE_TIME_SLOTS, INITIAL_USERS } from '../data';
 
 // ==========================================
 // SCREEN 1: SPLASH SCREEN
@@ -101,101 +108,346 @@ export const SplashScreenView: React.FC<{
 // SCREEN 2: LOGIN SCREEN
 // ==========================================
 export const LoginScreenView: React.FC<{
-  onLogin: (role: 'patient' | 'admin') => void;
+  onLogin: (role: 'patient' | 'admin', user?: AuthUser) => void;
   onGoToRegister: () => void;
-}> = ({ onLogin, onGoToRegister }) => {
+  registeredUsers?: AuthUser[];
+}> = ({ onLogin, onGoToRegister, registeredUsers = INITIAL_USERS }) => {
   const [email, setEmail] = useState('alex.johnson@example.com');
-  const [password, setPassword] = useState('••••••••');
+  const [password, setPassword] = useState('password123');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Forgot Password modal state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotFeedback, setForgotFeedback] = useState('');
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      setError('Email address is required');
+    setError('');
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('Email address is required.');
       return;
     }
-    // Simple mock logic
-    if (email.includes('admin')) {
-      onLogin('admin');
-    } else {
-      onLogin('patient');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    setTimeout(() => {
+      setIsLoading(false);
+      // Search in registered users
+      const allUsers = registeredUsers.length > 0 ? registeredUsers : INITIAL_USERS;
+      const matchedUser = allUsers.find(
+        (u) => u.email.toLowerCase() === trimmedEmail.toLowerCase()
+      );
+
+      if (matchedUser) {
+        // Check password
+        if (matchedUser.password && matchedUser.password !== password) {
+          setError('Incorrect password. Please verify your credentials or use the demo buttons below.');
+          return;
+        }
+        onLogin(matchedUser.role, matchedUser);
+      } else {
+        // If not registered in list, determine role by email or default to patient
+        if (trimmedEmail.toLowerCase().includes('admin')) {
+          const customAdmin: AuthUser = {
+            id: 'admin_' + Date.now(),
+            name: 'Clinic Administrator',
+            email: trimmedEmail,
+            password: password,
+            phone: '+1 (555) 000-1122',
+            role: 'admin',
+            createdAt: new Date().toISOString().split('T')[0],
+            address: 'DentalCare Headquarters'
+          };
+          onLogin('admin', customAdmin);
+        } else {
+          const customPatient: AuthUser = {
+            id: 'user_' + Date.now(),
+            name: trimmedEmail.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            email: trimmedEmail,
+            password: password,
+            phone: '+1 (555) 123-4567',
+            role: 'patient',
+            createdAt: new Date().toISOString().split('T')[0],
+            address: 'Registered Patient Address'
+          };
+          onLogin('patient', customPatient);
+        }
+      }
+    }, 450);
+  };
+
+  const handleQuickFill = (userType: 'alex' | 'jane' | 'admin') => {
+    setError('');
+    if (userType === 'alex') {
+      setEmail('alex.johnson@example.com');
+      setPassword('password123');
+    } else if (userType === 'jane') {
+      setEmail('jane.smith@example.com');
+      setPassword('password123');
+    } else if (userType === 'admin') {
+      setEmail('admin@dentalcare.com');
+      setPassword('admin123');
     }
   };
 
+  const handleSendResetLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail || !forgotEmail.includes('@')) {
+      setForgotFeedback('Please enter a valid registered email address.');
+      return;
+    }
+    setForgotFeedback(`Instructions have been sent to ${forgotEmail}. Please check your inbox.`);
+    setTimeout(() => {
+      setShowForgotModal(false);
+      setForgotFeedback('');
+    }, 2800);
+  };
+
   return (
-    <div className="flex-1 bg-white p-6 flex flex-col justify-between font-sans text-slate-800">
-      <div className="flex flex-col gap-8 pt-6">
+    <div className="flex-1 bg-white p-6 flex flex-col justify-between font-sans text-slate-800 relative">
+      <div className="flex flex-col gap-5 pt-4">
+        
+        {/* Header Branding */}
         <div className="text-center">
-          <div className="w-12 h-12 bg-blue-50 text-primary-m3 rounded-xl flex items-center justify-center mx-auto mb-3">
+          <div className="w-12 h-12 bg-blue-50 text-primary-m3 rounded-2xl flex items-center justify-center mx-auto mb-2.5 shadow-sm border border-blue-100">
             <Stethoscope className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome Back</h2>
-          <p className="text-xs text-slate-500 mt-1">Sign in to manage your appointments and records.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Sign in to manage appointments & clinical records</p>
         </div>
 
-        <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
+        {/* Error Feedback Banner */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl text-xs flex items-start gap-2 animate-fade-in">
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+            <span className="leading-tight">{error}</span>
+          </div>
+        )}
+
+        {/* Login Form */}
+        <form onSubmit={handleLoginSubmit} className="flex flex-col gap-3.5">
           <M3TextField
             label="Email Address"
             leadingIcon={Mail}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (error) setError('');
+            }}
             type="email"
             id="login-email"
+            required
           />
+
           <M3TextField
             label="Password"
             leadingIcon={Lock}
+            trailingIcon={showPassword ? EyeOff : Eye}
+            onTrailingIconClick={() => setShowPassword(!showPassword)}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (error) setError('');
+            }}
+            type={showPassword ? 'text' : 'password'}
             id="login-password"
-            error={error}
+            required
           />
-          
-          <button 
-            type="button"
-            onClick={() => alert("Password reset link sent to: " + email)}
-            className="text-right text-xs font-bold text-primary-m3 hover:underline outline-none"
-          >
-            Forgot Password?
-          </button>
 
-          <M3Button type="submit" variant="filled" className="w-full mt-2" id="login-btn">
-            Login
+          <div className="flex justify-between items-center text-xs pt-1">
+            <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="rounded text-primary-m3 focus:ring-primary-m3 border-slate-300 w-3.5 h-3.5"
+              />
+              <span className="text-[11px] font-medium">Remember me</span>
+            </label>
+
+            <button 
+              type="button"
+              onClick={() => {
+                setForgotEmail(email);
+                setShowForgotModal(true);
+              }}
+              className="text-[11px] font-bold text-primary-m3 hover:underline outline-none"
+            >
+              Forgot Password?
+            </button>
+          </div>
+
+          <M3Button 
+            type="submit" 
+            variant="filled" 
+            className="w-full mt-1 font-semibold flex items-center justify-center gap-2" 
+            id="login-btn"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Verifying credentials...</span>
+              </>
+            ) : (
+              <span>Sign In</span>
+            )}
           </M3Button>
         </form>
 
-        <div className="relative flex py-2 items-center">
-          <div className="flex-grow border-t border-slate-100"></div>
-          <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase">or bypass as</span>
-          <div className="flex-grow border-t border-slate-100"></div>
+        {/* Quick Demo Pre-fill Pills */}
+        <div className="pt-1">
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-slate-100"></div>
+            <span className="flex-shrink mx-3 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              1-Click Demo Accounts
+            </span>
+            <div className="flex-grow border-t border-slate-100"></div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickFill('alex')}
+                className={`flex-1 py-2 px-2.5 text-[11px] font-bold rounded-xl border transition-all text-left flex items-center gap-1.5 outline-none
+                  ${email === 'alex.johnson@example.com' 
+                    ? 'bg-blue-100/60 border-blue-400 text-blue-800 font-bold shadow-sm' 
+                    : 'bg-blue-50/60 hover:bg-blue-100 text-primary-m3 border-blue-200/80'}`}
+              >
+                <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-bold shrink-0">
+                  AJ
+                </div>
+                <div className="min-w-0 flex-1 truncate">
+                  <span className="block truncate leading-none">Alex (Patient)</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickFill('jane')}
+                className={`flex-1 py-2 px-2.5 text-[11px] font-bold rounded-xl border transition-all text-left flex items-center gap-1.5 outline-none
+                  ${email === 'jane.smith@example.com' 
+                    ? 'bg-blue-100/60 border-blue-400 text-blue-800 font-bold shadow-sm' 
+                    : 'bg-blue-50/60 hover:bg-blue-100 text-primary-m3 border-blue-200/80'}`}
+              >
+                <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] font-bold shrink-0">
+                  JS
+                </div>
+                <div className="min-w-0 flex-1 truncate">
+                  <span className="block truncate leading-none">Jane (Patient)</span>
+                </div>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleQuickFill('admin')}
+              className={`w-full py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-left flex items-center justify-between outline-none
+                ${email === 'admin@dentalcare.com' 
+                  ? 'bg-teal-100/70 border-teal-500 text-teal-900 font-bold shadow-sm' 
+                  : 'bg-teal-50/60 hover:bg-teal-100 text-teal-800 border-teal-200/80'}`}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[9px] font-bold shrink-0">
+                  SM
+                </div>
+                <span>Dr. Sarah Miller (Clinic Administrator)</span>
+              </div>
+              <span className="text-[9px] bg-teal-200/70 text-teal-900 px-1.5 py-0.5 rounded font-bold uppercase">Admin</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex gap-2.5">
-          <button
-            onClick={() => onLogin('patient')}
-            className="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-100 text-primary-m3 text-xs font-bold rounded-lg border border-blue-200 transition-all outline-none"
-          >
-            Patient Demo
-          </button>
-          <button
-            onClick={() => onLogin('admin')}
-            className="flex-1 py-2 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold rounded-lg border border-teal-200 transition-all outline-none"
-          >
-            Admin Demo
-          </button>
-        </div>
       </div>
 
-      <div className="text-center pb-4 text-xs text-slate-500">
+      {/* Footer Registration Link */}
+      <div className="text-center pb-2 text-xs text-slate-500">
         Don't have an account?{' '}
         <button 
           onClick={onGoToRegister} 
           className="text-primary-m3 font-bold hover:underline outline-none"
         >
-          Create Account
+          Create New Account
         </button>
       </div>
+
+      {/* Forgot Password Interactive Modal */}
+      {showForgotModal && (
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl p-5 w-full shadow-2xl border border-slate-100 flex flex-col gap-3.5">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue-50 text-primary-m3 flex items-center justify-center">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-900">Reset Password</h3>
+              </div>
+              <button 
+                onClick={() => setShowForgotModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Enter your email address to receive password reset instructions.
+            </p>
+
+            {forgotFeedback ? (
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-xl text-xs font-medium flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>{forgotFeedback}</span>
+              </div>
+            ) : (
+              <form onSubmit={handleSendResetLink} className="flex flex-col gap-3">
+                <M3TextField
+                  label="Registered Email"
+                  leadingIcon={Mail}
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  type="email"
+                  required
+                />
+                <div className="flex gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotModal(false)}
+                    className="flex-1 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <M3Button
+                    type="submit"
+                    variant="filled"
+                    className="flex-1 !py-2 text-xs"
+                  >
+                    Send Link
+                  </M3Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -204,88 +456,240 @@ export const LoginScreenView: React.FC<{
 // SCREEN 3: REGISTER SCREEN
 // ==========================================
 export const RegisterScreenView: React.FC<{
-  onRegister: () => void;
+  onRegister: (newUser: AuthUser) => void;
   onGoToLogin: () => void;
-}> = ({ onRegister, onGoToLogin }) => {
+  registeredUsers?: AuthUser[];
+}> = ({ onRegister, onGoToLogin, registeredUsers = INITIAL_USERS }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<'patient' | 'admin'>('patient');
+  const [address, setAddress] = useState('');
   const [pwd, setPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(true);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onRegister();
+    setError('');
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedName || trimmedName.length < 2) {
+      setError('Please provide your full name.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    // Check if email already registered
+    const existing = (registeredUsers || []).find(
+      (u) => u.email.toLowerCase() === trimmedEmail.toLowerCase()
+    );
+    if (existing) {
+      setError('An account with this email address already exists. Please sign in instead.');
+      return;
+    }
+
+    if (!trimmedPhone) {
+      setError('Please provide a contact phone number.');
+      return;
+    }
+
+    if (pwd.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (pwd !== confirmPwd) {
+      setError('Passwords do not match. Please re-enter.');
+      return;
+    }
+
+    if (!agreedToTerms) {
+      setError('You must agree to the Terms of Service & Privacy Policy.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    setTimeout(() => {
+      setIsLoading(false);
+      const newUser: AuthUser = {
+        id: 'u_' + Date.now(),
+        name: trimmedName,
+        email: trimmedEmail,
+        password: pwd,
+        phone: trimmedPhone,
+        role: role,
+        address: address.trim() || (role === 'admin' ? 'DentalCare Medical Center' : 'Patient Address'),
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+
+      onRegister(newUser);
+    }, 400);
   };
 
   return (
-    <div className="flex-1 bg-white p-6 flex flex-col justify-between font-sans text-slate-800">
-      <div className="flex flex-col gap-6 pt-4">
+    <div className="flex-1 bg-white p-5 flex flex-col justify-between font-sans text-slate-800 overflow-y-auto no-scrollbar">
+      <div className="flex flex-col gap-4 pt-2">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Create Account</h2>
-          <p className="text-xs text-slate-500 mt-1">Join DentalCare to start booking today.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Join DentalCare for real-time bookings & records</p>
         </div>
 
-        <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-3.5">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl text-xs flex items-start gap-2 animate-fade-in">
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+            <span className="leading-tight">{error}</span>
+          </div>
+        )}
+
+        {/* Role Selector Tabs */}
+        <div className="flex bg-slate-100 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setRole('patient')}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all
+              ${role === 'patient' 
+                ? 'bg-white text-primary-m3 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            Patient Account
+          </button>
+          <button
+            type="button"
+            onClick={() => setRole('admin')}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all
+              ${role === 'admin' 
+                ? 'bg-white text-teal-700 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            Clinical Specialist
+          </button>
+        </div>
+
+        <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-3">
           <M3TextField
             label="Full Name"
             leadingIcon={User}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (error) setError('');
+            }}
             id="reg-name"
+            placeholder="e.g. Alex Johnson"
             required
           />
+
           <M3TextField
             label="Email Address"
             leadingIcon={Mail}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (error) setError('');
+            }}
             type="email"
             id="reg-email"
+            placeholder="name@example.com"
             required
           />
+
           <M3TextField
             label="Phone Number"
             leadingIcon={Phone}
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              if (error) setError('');
+            }}
             type="tel"
             id="reg-phone"
+            placeholder="+1 (555) 000-0000"
             required
           />
+
           <M3TextField
-            label="Password"
+            label="Address / Location"
+            leadingIcon={MapPin}
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            id="reg-address"
+            placeholder="Street address, city"
+          />
+
+          <M3TextField
+            label="Password (min 6 characters)"
             leadingIcon={Lock}
+            trailingIcon={showPassword ? EyeOff : Eye}
+            onTrailingIconClick={() => setShowPassword(!showPassword)}
             value={pwd}
-            onChange={(e) => setPwd(e.target.value)}
-            type="password"
+            onChange={(e) => {
+              setPwd(e.target.value);
+              if (error) setError('');
+            }}
+            type={showPassword ? 'text' : 'password'}
             id="reg-pwd"
             required
           />
+
           <M3TextField
             label="Confirm Password"
             leadingIcon={Lock}
             value={confirmPwd}
-            onChange={(e) => setConfirmPwd(e.target.value)}
-            type="password"
+            onChange={(e) => {
+              setConfirmPwd(e.target.value);
+              if (error) setError('');
+            }}
+            type={showPassword ? 'text' : 'password'}
             id="reg-conf"
             required
           />
 
           <div className="flex items-start gap-2 py-1">
-            <input type="checkbox" id="terms" className="mt-1 rounded border-slate-300 text-primary-m3 focus:ring-primary-m3" required />
-            <label htmlFor="terms" className="text-[10px] text-slate-500 leading-tight">
+            <input 
+              type="checkbox" 
+              id="terms" 
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="mt-0.5 rounded border-slate-300 text-primary-m3 focus:ring-primary-m3 w-3.5 h-3.5" 
+            />
+            <label htmlFor="terms" className="text-[10px] text-slate-500 leading-tight select-none">
               I agree to the DentalCare App <span className="text-primary-m3 font-semibold hover:underline cursor-pointer">Terms of Service</span> and <span className="text-primary-m3 font-semibold hover:underline cursor-pointer">Privacy Policy</span>.
             </label>
           </div>
 
-          <M3Button type="submit" variant="filled" className="w-full mt-1" id="reg-btn">
-            Create Account
+          <M3Button 
+            type="submit" 
+            variant="filled" 
+            className="w-full mt-1" 
+            id="reg-btn"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Creating Profile...
+              </span>
+            ) : (
+              <span>Create Account</span>
+            )}
           </M3Button>
         </form>
       </div>
 
-      <div className="text-center pb-4 text-xs text-slate-500 mt-4">
+      <div className="text-center pb-2 text-xs text-slate-500 mt-3">
         Already have an account?{' '}
         <button 
           onClick={onGoToLogin} 
@@ -304,12 +708,22 @@ export const RegisterScreenView: React.FC<{
 export const PatientDashboardView: React.FC<{
   appointments: Appointment[];
   notifications: NotificationItem[];
+  currentUser?: AuthUser;
   onNavigate: (screen: ActiveScreen) => void;
   onSelectAppointment: (appt: Appointment) => void;
-}> = ({ appointments, notifications, onNavigate, onSelectAppointment }) => {
+}> = ({ appointments, notifications, currentUser, onNavigate, onSelectAppointment }) => {
   // Find next upcoming appointment
   const upcoming = appointments.find(a => a.status === 'Confirmed' || a.status === 'Pending');
   const recentAlerts = notifications.slice(0, 2);
+
+  const userName = currentUser?.name || 'Alex Johnson';
+  const firstName = userName.split(' ')[0];
+  const initials = userName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || 'AJ';
 
   return (
     <div className="flex-1 p-5 flex flex-col gap-5 text-slate-800">
@@ -318,11 +732,14 @@ export const PatientDashboardView: React.FC<{
       <div className="flex justify-between items-center bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50">
         <div>
           <span className="text-[10px] font-bold text-primary-m3 tracking-widest uppercase">Welcome back</span>
-          <h2 className="text-xl font-bold text-slate-900">Hello, Alex</h2>
-          <p className="text-xs text-slate-500">Your health records are up-to-date</p>
+          <h2 className="text-xl font-bold text-slate-900">Hello, {firstName}</h2>
+          <p className="text-xs text-slate-500">Your clinical records are synchronized</p>
         </div>
-        <div className="w-12 h-12 rounded-full bg-primary-m3 text-white flex items-center justify-center font-bold text-lg shadow-sm border-2 border-white">
-          AJ
+        <div 
+          onClick={() => onNavigate('patient-profile')}
+          className="w-12 h-12 rounded-full bg-primary-m3 text-white flex items-center justify-center font-bold text-base shadow-sm border-2 border-white cursor-pointer hover:scale-105 transition-transform"
+        >
+          {initials}
         </div>
       </div>
 
@@ -358,7 +775,7 @@ export const PatientDashboardView: React.FC<{
                 Manage Slot
               </button>
               <button 
-                onClick={() => alert("Appointment details added to Google Calendar")}
+                onClick={() => alert("Appointment details added to your calendar")}
                 className="px-3 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold rounded-lg transition-all outline-none"
               >
                 Add Calendar
@@ -1001,15 +1418,51 @@ export const NotificationsView: React.FC<{
 // SCREEN 10: PATIENT PROFILE SCREEN
 // ==========================================
 export const PatientProfileView: React.FC<{
+  currentUser?: AuthUser;
+  onUpdateProfile?: (updated: Partial<AuthUser>) => void;
   onLogout: () => void;
-}> = ({ onLogout }) => {
+}> = ({ currentUser, onUpdateProfile, onLogout }) => {
   const [phoneAlerts, setPhoneAlerts] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState('Alex Johnson');
-  const [email, setEmail] = useState('alex.johnson@example.com');
-  const [phone, setPhone] = useState('+1 (555) 234-5678');
+  
+  const [name, setName] = useState(currentUser?.name || 'Alex Johnson');
+  const [email, setEmail] = useState(currentUser?.email || 'alex.johnson@example.com');
+  const [phone, setPhone] = useState(currentUser?.phone || '+1 (555) 234-5678');
+  const [address, setAddress] = useState(currentUser?.address || '742 Evergreen Terrace, Springfield');
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Sync state if currentUser changes
+  React.useEffect(() => {
+    if (currentUser) {
+      setName(currentUser.name);
+      setEmail(currentUser.email);
+      setPhone(currentUser.phone);
+      if (currentUser.address) setAddress(currentUser.address);
+    }
+  }, [currentUser]);
+
+  const initials = name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || 'AJ';
+
+  const handleSaveProfile = () => {
+    if (onUpdateProfile) {
+      onUpdateProfile({
+        name,
+        email,
+        phone,
+        address
+      });
+    }
+    setIsEditing(false);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
 
   return (
     <div className="flex-1 p-5 flex flex-col gap-5 text-slate-800">
@@ -1017,20 +1470,39 @@ export const PatientProfileView: React.FC<{
       {/* Profile Header section */}
       <div className="flex flex-col items-center text-center gap-3 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
         <div className="relative">
-          <div className="w-20 h-20 bg-primary-container-m3 text-primary-m3 rounded-full flex items-center justify-center font-bold text-2xl border border-blue-200">
-            AJ
+          <div className="w-20 h-20 bg-primary-container-m3 text-primary-m3 rounded-full flex items-center justify-center font-bold text-2xl border-2 border-blue-200 shadow-inner">
+            {initials}
           </div>
-          <button className="absolute bottom-0 right-0 p-1.5 bg-primary-m3 hover:bg-blue-700 text-white rounded-full shadow border-2 border-white outline-none">
+          <button 
+            onClick={() => setIsEditing(true)}
+            className="absolute bottom-0 right-0 p-1.5 bg-primary-m3 hover:bg-blue-700 text-white rounded-full shadow border-2 border-white outline-none"
+            title="Edit Profile"
+          >
             <Edit className="w-3.5 h-3.5" />
           </button>
         </div>
         <div>
           <h3 className="text-base font-bold text-slate-900">{name}</h3>
-          <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded uppercase mt-1 inline-block">
-            Health ID: #DC-8821
-          </span>
+          <div className="flex items-center justify-center gap-2 mt-1">
+            <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded uppercase">
+              ID: #{currentUser?.id ? currentUser.id.substring(currentUser.id.length - 5).toUpperCase() : 'DC-8821'}
+            </span>
+            <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded uppercase">
+              {currentUser?.role === 'admin' ? 'Specialist' : 'Patient'}
+            </span>
+          </div>
+          {currentUser?.createdAt && (
+            <p className="text-[10px] text-slate-400 mt-1">Member since {currentUser.createdAt}</p>
+          )}
         </div>
       </div>
+
+      {saveSuccess && (
+        <div className="bg-teal-50 border border-teal-200 text-teal-800 px-3 py-2 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+          <CheckCircle className="w-4 h-4 text-teal-600 shrink-0" />
+          <span>Profile updated successfully!</span>
+        </div>
+      )}
 
       {/* Account Info section */}
       <div>
@@ -1050,8 +1522,9 @@ export const PatientProfileView: React.FC<{
               <M3TextField label="Full Name" value={name} onChange={(e) => setName(e.target.value)} id="p-name" />
               <M3TextField label="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} id="p-email" />
               <M3TextField label="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} id="p-phone" />
-              <M3Button variant="filled" onClick={() => { setIsEditing(false); alert("Profile saved successfully!"); }} className="w-full mt-1">
-                Save Profile
+              <M3TextField label="Address" value={address} onChange={(e) => setAddress(e.target.value)} id="p-address" />
+              <M3Button variant="filled" onClick={handleSaveProfile} className="w-full mt-1">
+                Save Changes
               </M3Button>
             </div>
           ) : (
@@ -1066,7 +1539,7 @@ export const PatientProfileView: React.FC<{
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-slate-400">Home Address:</span>
-                <span className="font-semibold text-slate-700">742 Evergreen Terrace, Springfield</span>
+                <span className="font-semibold text-slate-700 text-right">{address}</span>
               </div>
             </div>
           )}

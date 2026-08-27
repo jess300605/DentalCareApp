@@ -3,7 +3,40 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Dentist, Patient, Appointment, NotificationItem } from './types';
+import { Dentist, Patient, Appointment, NotificationItem, AuthUser } from './types';
+
+export const INITIAL_USERS: AuthUser[] = [
+  {
+    id: 'u1',
+    name: 'Alex Johnson',
+    email: 'alex.johnson@example.com',
+    password: 'password123',
+    phone: '+1 (555) 234-5678',
+    role: 'patient',
+    address: '742 Evergreen Terrace, Springfield',
+    createdAt: '2026-01-10'
+  },
+  {
+    id: 'u2',
+    name: 'Jane Smith',
+    email: 'jane.smith@example.com',
+    password: 'password123',
+    phone: '+1 (555) 987-6543',
+    role: 'patient',
+    address: '104 Maple Street, Metroville',
+    createdAt: '2026-02-14'
+  },
+  {
+    id: 'u3',
+    name: 'Dr. Sarah Miller',
+    email: 'admin@dentalcare.com',
+    password: 'admin123',
+    phone: '+1 (555) 800-3368',
+    role: 'admin',
+    address: 'DentalCare Medical Center, Suite 400',
+    createdAt: '2025-11-01'
+  }
+];
 
 export const INITIAL_DENTISTS: Dentist[] = [
   {

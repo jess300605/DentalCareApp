@@ -67,6 +67,12 @@ export interface UserProfile {
   avatarUrl?: string;
 }
 
+export interface AuthUser extends UserProfile {
+  password?: string;
+  address?: string;
+  createdAt: string;
+}
+
 export type ActiveScreen =
   | 'splash'
   | 'login'

@@ -3,20 +3,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   ActiveScreen, 
   Dentist, 
   Patient, 
   Appointment, 
   NotificationItem, 
-  AppointmentStatus 
+  AppointmentStatus,
+  AuthUser
 } from './types';
 import { 
   INITIAL_DENTISTS, 
   INITIAL_PATIENTS, 
   INITIAL_APPOINTMENTS, 
-  INITIAL_NOTIFICATIONS 
+  INITIAL_NOTIFICATIONS,
+  INITIAL_USERS
 } from './data';
 import { AndroidFrame } from './components/AndroidFrame';
 import { DesignSystemPanel } from './components/DesignSystemPanel';
@@ -45,7 +47,9 @@ import {
   Sparkles, 
   ArrowRight,
   ShieldAlert,
-  Terminal
+  Terminal,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 
 export default function App() {
@@ -53,15 +57,107 @@ export default function App() {
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>('splash');
   const [userRole, setUserRole] = useState<'patient' | 'admin'>('patient');
   
-  const [dentists, setDentists] = useState<Dentist[]>(INITIAL_DENTISTS);
-  const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  // Registered Auth Users state with persistence
+  const [users, setUsers] = useState<AuthUser[]>(() => {
+    try {
+      const stored = localStorage.getItem('dentalcare_users');
+      return stored ? JSON.parse(stored) : INITIAL_USERS;
+    } catch {
+      return INITIAL_USERS;
+    }
+  });
+
+  // Currently logged-in user
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    try {
+      const stored = localStorage.getItem('dentalcare_current_user');
+      return stored ? JSON.parse(stored) : INITIAL_USERS[0];
+    } catch {
+      return INITIAL_USERS[0];
+    }
+  });
+  
+  const [dentists, setDentists] = useState<Dentist[]>(() => {
+    try {
+      const stored = localStorage.getItem('dentalcare_dentists');
+      return stored ? JSON.parse(stored) : INITIAL_DENTISTS;
+    } catch {
+      return INITIAL_DENTISTS;
+    }
+  });
+
+  const [patients, setPatients] = useState<Patient[]>(() => {
+    try {
+      const stored = localStorage.getItem('dentalcare_patients');
+      return stored ? JSON.parse(stored) : INITIAL_PATIENTS;
+    } catch {
+      return INITIAL_PATIENTS;
+    }
+  });
+
+  const [appointments, setAppointments] = useState<Appointment[]>(() => {
+    try {
+      const stored = localStorage.getItem('dentalcare_appointments');
+      return stored ? JSON.parse(stored) : INITIAL_APPOINTMENTS;
+    } catch {
+      return INITIAL_APPOINTMENTS;
+    }
+  });
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('dentalcare_notifications');
+      return stored ? JSON.parse(stored) : INITIAL_NOTIFICATIONS;
+    } catch {
+      return INITIAL_NOTIFICATIONS;
+    }
+  });
+
+  // Local storage synchronization
+  useEffect(() => {
+    try {
+      localStorage.setItem('dentalcare_users', JSON.stringify(users));
+    } catch { /* no-op */ }
+  }, [users]);
+
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem('dentalcare_current_user', JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem('dentalcare_current_user');
+      }
+    } catch { /* no-op */ }
+  }, [currentUser]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dentalcare_appointments', JSON.stringify(appointments));
+    } catch { /* no-op */ }
+  }, [appointments]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dentalcare_notifications', JSON.stringify(notifications));
+    } catch { /* no-op */ }
+  }, [notifications]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dentalcare_dentists', JSON.stringify(dentists));
+    } catch { /* no-op */ }
+  }, [dentists]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dentalcare_patients', JSON.stringify(patients));
+    } catch { /* no-op */ }
+  }, [patients]);
 
   // --- Context Selection States ---
   const [selectedDentist, setSelectedDentist] = useState<Dentist | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(INITIAL_PATIENTS[0]);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(patients[0] || INITIAL_PATIENTS[0]);
   const [lastBooking, setLastBooking] = useState<{
     dentist: Dentist;
     date: string;
@@ -88,10 +184,14 @@ export default function App() {
     }
   };
 
-  // --- Interaction Event Handlers ---
-  const handleLogin = (role: 'patient' | 'admin') => {
+  // --- Authentication Event Handlers ---
+  const handleLogin = (role: 'patient' | 'admin', user?: AuthUser) => {
     setUserRole(role);
-    showToast(`Successfully logged in as ${role === 'admin' ? 'Administrator' : 'Patient Alex Johnson'}`);
+    const resolvedUser = user || (role === 'admin' ? users.find(u => u.role === 'admin') || INITIAL_USERS[2] : users.find(u => u.role === 'patient') || INITIAL_USERS[0]);
+    setCurrentUser(resolvedUser);
+    
+    showToast(`Successfully logged in as ${resolvedUser.name} (${role === 'admin' ? 'Clinic Administrator' : 'Patient'})`);
+    
     if (role === 'admin') {
       setActiveScreen('admin-dashboard');
     } else {
@@ -99,10 +199,77 @@ export default function App() {
     }
   };
 
-  const handleRegister = () => {
+  const handleRegister = (newUser: AuthUser) => {
+    setUsers((prev) => [newUser, ...prev]);
+    setCurrentUser(newUser);
+    setUserRole(newUser.role);
+
+    // If registered as patient, ensure they appear in the clinical patient registry
+    if (newUser.role === 'patient') {
+      const newPatientRecord: Patient = {
+        id: newUser.id,
+        name: newUser.name,
+        phone: newUser.phone,
+        email: newUser.email,
+        lastVisit: 'First Consultation',
+        history: []
+      };
+      setPatients((prev) => [newPatientRecord, ...prev]);
+    }
+
+    // Add welcome notification
+    const welcomeNotif: NotificationItem = {
+      id: 'n_welcome_' + Date.now(),
+      type: 'confirmed',
+      title: 'Welcome to DentalCare!',
+      message: `Hello ${newUser.name}, your account is active. You can now book appointments with our specialist dentists.`,
+      time: 'Just now',
+      read: false
+    };
+    setNotifications((prev) => [welcomeNotif, ...prev]);
+
+    showToast(`Account created! Welcome to DentalCare, ${newUser.name}.`);
+    
+    if (newUser.role === 'admin') {
+      setActiveScreen('admin-dashboard');
+    } else {
+      setActiveScreen('patient-dashboard');
+    }
+  };
+
+  const handleUpdateProfile = (updated: Partial<AuthUser>) => {
+    if (!currentUser) return;
+    
+    const updatedUser = { ...currentUser, ...updated };
+    setCurrentUser(updatedUser);
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === currentUser.id ? { ...u, ...updated } : u))
+    );
+
+    // Also sync patient record if applicable
+    setPatients((prev) =>
+      prev.map((p) => {
+        if (p.email.toLowerCase() === currentUser.email.toLowerCase() || p.id === currentUser.id) {
+          return {
+            ...p,
+            name: updated.name || p.name,
+            email: updated.email || p.email,
+            phone: updated.phone || p.phone
+          };
+        }
+        return p;
+      })
+    );
+
+    showToast("Profile details updated successfully.");
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
     setUserRole('patient');
-    showToast("Registration completed! Welcome to DentalCare App.");
-    setActiveScreen('patient-dashboard');
+    setActiveScreen('login');
+    showToast("You have been securely logged out.");
   };
 
   const handleConfirmBooking = (booking: {
@@ -111,6 +278,8 @@ export default function App() {
     time: string;
     reason: string;
   }) => {
+    const patientName = currentUser?.name || 'Alex Johnson';
+    
     // Add to appointment list
     const newAppt: Appointment = {
       id: 'a_' + Date.now(),
@@ -119,10 +288,10 @@ export default function App() {
       dentistSpecialty: booking.dentist.specialty,
       date: booking.date,
       time: booking.time,
-      patientName: 'Alex Johnson',
+      patientName: patientName,
       reason: booking.reason,
       status: 'Confirmed',
-      notes: 'Initial checkup registered. Please brush teeth before coming.'
+      notes: 'Initial checkup registered. Please arrive 10 minutes prior.'
     };
 
     setAppointments([newAppt, ...appointments]);
@@ -303,27 +472,33 @@ export default function App() {
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans select-none overflow-hidden">
       
       {/* 1. Header Toolbar workspace bar */}
-      <header className="bg-slate-950 border-b border-slate-800 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 z-40 shrink-0 select-none">
+      <header className="bg-slate-950 border-b border-slate-800 px-6 py-3.5 flex flex-col md:flex-row justify-between items-center gap-4 z-40 shrink-0 select-none">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg animate-pulse">
-            <Settings className="w-5.5 h-5.5 animate-spin-slow" />
+            <Settings className="w-5 h-5 animate-spin-slow" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold tracking-tight text-white">DentalCare App</h1>
               <span className="text-[10px] bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-800">
-                Material 3 Specs
+                Material 3 Specs & Kotlin Architecture
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">High-Fidelity Android Mobile Application Blueprint & Interactive Simulator</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Production Architecture • Fully Functional Auth & Records Engine
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
-          <div className="text-xs text-slate-400 px-3.5 py-1.5 font-bold flex items-center gap-1.5">
-            <Terminal className="w-3.5 h-3.5 text-blue-400" />
-            <span>Interactive Simulator</span>
-          </div>
+          {currentUser && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-slate-800/80 rounded-lg border border-slate-700/50 text-xs">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-slate-300 font-medium truncate max-w-[130px]">{currentUser.name}</span>
+              <span className="text-[10px] bg-blue-900/60 text-blue-300 px-1.5 py-0.2 rounded font-bold uppercase">{userRole}</span>
+            </div>
+          )}
+
           <button 
             onClick={() => {
               setActiveScreen('splash');
@@ -331,7 +506,7 @@ export default function App() {
             }}
             className="text-xs bg-slate-800 hover:bg-slate-700 font-bold text-white px-3.5 py-1.5 rounded-lg transition-all outline-none"
           >
-            Reset Simulator
+            Reset Intro
           </button>
         </div>
       </header>
@@ -344,7 +519,18 @@ export default function App() {
           activeScreen={activeScreen}
           onNavigate={handleNavigate}
           userRole={userRole}
-          onChangeRole={setUserRole}
+          onChangeRole={(role) => {
+            setUserRole(role);
+            if (role === 'admin') {
+              const adminUser = users.find(u => u.role === 'admin') || INITIAL_USERS[2];
+              setCurrentUser(adminUser);
+              setActiveScreen('admin-dashboard');
+            } else {
+              const patientUser = users.find(u => u.role === 'patient') || INITIAL_USERS[0];
+              setCurrentUser(patientUser);
+              setActiveScreen('patient-dashboard');
+            }
+          }}
         />
 
         {/* Right column: Interactive Android Phone Frame Simulator */}
@@ -384,6 +570,7 @@ export default function App() {
                 <LoginScreenView
                   onLogin={handleLogin}
                   onGoToRegister={() => setActiveScreen('register')}
+                  registeredUsers={users}
                 />
               )}
 
@@ -391,6 +578,7 @@ export default function App() {
                 <RegisterScreenView
                   onRegister={handleRegister}
                   onGoToLogin={() => setActiveScreen('login')}
+                  registeredUsers={users}
                 />
               )}
 
@@ -398,6 +586,7 @@ export default function App() {
                 <PatientDashboardView
                   appointments={appointments}
                   notifications={notifications}
+                  currentUser={currentUser || undefined}
                   onNavigate={handleNavigate}
                   onSelectAppointment={(appt) => setSelectedAppointment(appt)}
                 />
@@ -456,10 +645,9 @@ export default function App() {
 
               {activeScreen === 'patient-profile' && (
                 <PatientProfileView
-                  onLogout={() => {
-                    setActiveScreen('login');
-                    showToast("Successfully logged out.");
-                  }}
+                  currentUser={currentUser || undefined}
+                  onUpdateProfile={handleUpdateProfile}
+                  onLogout={handleLogout}
                 />
               )}
 
